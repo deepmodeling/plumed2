@@ -212,21 +212,25 @@ function find_matching_torsion(params,atype, a1,a2,a3,a4,iswitch,progression,tes
 
 # this is the case in which dihedrals are online:
      if(NF>5){
-       printf($1" "$2" "$3" "$4" "$5" ");
-       if($5==1 || $5==4 || $5==9){
-                                   if(NF!=8) error("dihedrals with type 1,4,9 should have 8 fields");
-                                   printf($6" "$7*sscale" "$8);
-       } else if($5==2) {
-                                   if(NF!=7) error("dihedrals with type 2 should have 7 fields");
-                                   printf($6" "$7*sscale);
-       } else if($5==3) {
-                                   if(NF!=11) error("dihedrals with type 3 should have 11 fields");
-                                   printf($6*sscale" "$7*sscale" "$8*sscale" "$9*sscale" "$10*sscale" "$11*sscale);
-       } else if($5==5) {
-                                   if(NF!=9) error("dihedrals with type 5 should have 9 fields");
-                                   printf($6*sscale" "$7*sscale" "$8*sscale" "$9*sscale);
-       } else error("dihedrals with more than 5 fields should be 1,2,3,4,5 or 9");
-       printf(" "comments"\n");
+      printf($1" "$2" "$3" "$4" "$5" ");
+      if($5==1 || $5==4 || $5==9){
+        if(NF==8) printf($6" "$7*sscale" "$8);
+        else if(NF==11) printf($6" "$7*sscale" "$8" "$9" "$10*sscale" "$11);
+        else error("dihedrals with type 1,4,9 should have 8 or 11 fields");
+      }else if($5==2) {
+        if(NF==7) printf($6" "$7*sscale);
+        else if(NF==9) printf($6" "$7*sscale" "$8" "$9*sscale);
+        else error("dihedrals with type 2 should have 7 or 9 fields");
+      }else if($5==3) {
+        if(NF==11) printf($6*sscale" "$7*sscale" "$8*sscale" "$9*sscale" "$10*sscale" "$11*sscale);
+        else if(NF==17) printf($6*sscale" "$7*sscale" "$8*sscale" "$9*sscale" "$10*sscale" "$11*sscale" "$12*sscale" "$13*sscale" "$14*sscale" "$15*sscale" "$16*sscale" "$17*sscale);
+        else error("dihedrals with type 3 should have 11 or 17 fields");
+      }else if($5==5) {
+        if(NF==9) printf($6*sscale" "$7*sscale" "$8*sscale" "$9*sscale);
+        else if(NF==13) printf($6*sscale" "$7*sscale" "$8*sscale" "$9*sscale" "$10*sscale" "$11*sscale" "$12*sscale" "$13*sscale);
+        else error("dihedrals with type 5 should have 9 fields");
+      }else error("dihedrals with more than 5 fields should be 1,2,3,4,5 or 9");
+      printf(" "comments"\n");
 # this is the case in which we have to search the database
      } else if(NF==5){
        param="";
@@ -287,8 +291,13 @@ function find_matching_torsion(params,atype, a1,a2,a3,a4,iswitch,progression,tes
 # ATOMS
   } else if(rec=="atoms" && NF>=7){
      if($2~".*"suffix"$"){
-       if(NF>=8) print $1,$2,$3,$4,$5,$6,$7*sqrt(scale),$8,comments;
-       if(NF==7) print $1,$2,$3,$4,$5,$6,$7*sqrt(scale),comments;
+       if(NF>=10) print $1,$2,$3,$4,$5,$6,$7*sqrt(scale),$8,$9suffix,$10*sqrt(scale),$11,comments;
+       if(NF==9) print $1,$2,$3,$4,$5,$6,$7*sqrt(scale),$8suffix,$9*sqrt(scale),comments;
+       if(NF==8){
+         if(($4=="WAT") || ($4=="SOL")) print $1,$2,$3,$4,$5,$6,$7,$8;
+         else print $1,$2,$3,$4,$5,$6,$7*sqrt(scale),$8,comments;
+       }
+       if(NF==7) print $0;
        list_of_atoms[n_of_atoms]=$1;
        n_of_atoms++;
      }
