@@ -951,6 +951,7 @@ void gmx::LegacySimulator::do_md()
 
         /* PLUMED HREX */
         gmx_bool bHREX = bDoReplEx && plumed_hrex;
+        float LocalUSwap[2] = {0.0, 0.0};
 
         if (plumedswitch && bHREX) {
           // gmx_enerdata_t *hrex_enerd;
@@ -962,6 +963,82 @@ void gmx::LegacySimulator::do_md()
             repl  = replica_exchange_get_repl(repl_ex);
             nrepl = replica_exchange_get_nrepl(repl_ex);
           }
+
+          if (DOMAINDECOMP(cr)) {
+            dd_collect_state(cr->dd,state,state_global);
+          } else {
+            copy_state_serial(state, state_global);
+          }
+
+          int odd = (repl%2==step/replExParams.exchangeInterval%2);
+
+          if(MASTER(cr)){
+            if(repl%2==step/replExParams.exchangeInterval%2){
+              if(repl+1<nrepl) exchange_state(ms,repl+1,state_global);
+            }else{
+              if(repl-1>=0) exchange_state(ms,repl-1,state_global);
+            }
+          }
+          if (!DOMAINDECOMP(cr)) {
+            copy_state_serial(state_global, state);
+          }
+          if(PAR(cr)){
+            if (DOMAINDECOMP(cr)) {
+              dd_partition_system(fplog,mdlog,step,cr,TRUE,1,
+                                  state_global,*top_global,ir,
+                                  imdSession, pull_work,
+                                  state,&f,mdAtoms,&top,fr,vsite,constr,
+                                  nrnb,wcycle,FALSE);
+            }
+          }
+          do_force(fplog, cr, ms, ir, awh.get(), enforcedRotation, imdSession, pull_work, step,
+                   nrnb, wcycle, &top, state->box, state->x.arrayRefWithPadding(), &state->hist,
+                   &f.view(), force_vir, mdatoms, &hrex_enerd, state->lambda, 
+                   fr, runScheduleWork, vsite, mu_tot, t, ed ? ed->getLegacyED() : nullptr,
+                   GMX_FORCE_STATECHANGED |
+                   GMX_FORCE_DYNAMICBOX |
+                   GMX_FORCE_ALLFORCES |
+                   GMX_FORCE_VIRIAL |
+                   GMX_FORCE_ENERGY |
+                   GMX_FORCE_DHDL |
+                   GMX_FORCE_NS,
+                   ddBalanceRegionHandler);
+
+          LocalUSwap[odd] = (&hrex_enerd)->term[F_EPOT];
+
+          /* exchange back */
+          if (DOMAINDECOMP(cr)) {
+            dd_collect_state(cr->dd,state,state_global);
+          } else {
+            copy_state_serial(state, state_global);
+          }
+
+          if(MASTER(cr)){
+            if(repl%2==step/replExParams.exchangeInterval%2){
+              if(repl+1<nrepl) exchange_state(ms,repl+1,state_global);
+            }else{
+              if(repl-1>=0) exchange_state(ms,repl-1,state_global);
+            }
+          }
+
+          if (!DOMAINDECOMP(cr)) {
+            copy_state_serial(state_global, state);
+          }
+          if(PAR(cr)){
+            if (DOMAINDECOMP(cr)) {
+              dd_partition_system(fplog,mdlog,step,cr,TRUE,1,
+                                  state_global,*top_global,ir,
+                                  imdSession, pull_work,
+                                  state,&f,mdAtoms,&top,fr,vsite,constr,
+                                  nrnb,wcycle,FALSE);
+              int nat_home = dd_numHomeAtoms(*cr->dd);
+              plumed_cmd(plumedmain,"setAtomsNlocal",&nat_home);
+              plumed_cmd(plumedmain,"setAtomsGatindex",cr->dd->globalAtomIndices.data());
+            }
+          }
+          bNS=true;
+
+          reset_enerdata(&hrex_enerd);
 
           if (DOMAINDECOMP(cr)) {
             dd_collect_state(cr->dd,state,state_global);
@@ -1002,6 +1079,7 @@ void gmx::LegacySimulator::do_md()
                    ddBalanceRegionHandler);
 
           plumed_cmd(plumedmain,"GREX cacheLocalUSwap",&(&hrex_enerd)->term[F_EPOT]);
+          LocalUSwap[1-odd] = (&hrex_enerd)->term[F_EPOT];
 
           /* exchange back */
           if (DOMAINDECOMP(cr)) {
@@ -1146,7 +1224,26 @@ void gmx::LegacySimulator::do_md()
               }
               if(bDoReplEx) plumed_cmd(plumedmain,"GREX savePositions",nullptr);
               if(plumedWantsToStop) ir->nsteps=step_rel+1;
-              if(bHREX) plumed_cmd(plumedmain,"GREX cacheLocalUNow",&enerd->term[F_EPOT]);
+              if(bHREX) {
+                plumed_cmd(plumedmain,"GREX cacheLocalUNow",&enerd->term[F_EPOT]);
+
+                if (MASTER(cr)){
+                int repl  = replica_exchange_get_repl(repl_ex);
+                int nrepl = replica_exchange_get_nrepl(repl_ex);
+                enerd->foreignLambdaTerms.zeroAllTerms();
+                reset_foreign_enerdata(enerd);
+                reset_dvdl_enerdata(enerd);
+                
+                enerd->foreignLambdaTerms.accumulate(repl+1, enerd->term[F_EPOT], 0.0);
+                if (repl-1>=0) enerd->foreignLambdaTerms.accumulate(repl, LocalUSwap[0], 0.0);
+                if (repl+1<nrepl) enerd->foreignLambdaTerms.accumulate(repl+2, LocalUSwap[1], 0.0);
+                // enerd->foreign_term[F_EPOT] = LocalUSwap;
+                // enerd->foreignLambdaTerms.accumulate((repl%2==step/replExParams.exchangeInterval%2) ? ((repl-1>=0) ? repl-1 : repl) : ((repl+1<nrepl) ? repl+1 : repl), enerd->foreign_term[F_EPOT], 0.0);
+                reset_foreign_enerdata(enerd);
+                enerd->foreignLambdaTerms.finalizePotentialContributions(enerd->dvdl_lin, state->lambda,
+                                                                         *ir->fepvals);
+                }
+              }
             }
             /* END PLUMED */
         }
