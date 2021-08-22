@@ -950,7 +950,7 @@ void gmx::LegacySimulator::do_md()
         clear_mat(force_vir);
 
         /* PLUMED HREX */
-        gmx_bool bHREX = bDoReplEx && plumed_hrex;
+        gmx_bool bHREX = bDoReplEx && plumed_hrex || (step == 0);
         float LocalUSwap[2] = {0.0, 0.0};
 
         if (plumedswitch && bHREX) {
