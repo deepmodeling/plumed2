@@ -1233,7 +1233,7 @@ void gmx::LegacySimulator::do_md()
                 int nrepl = replica_exchange_get_nrepl(repl_ex);
                 for (int i=0;i<enerd->enerpart_lambda.size();i++) enerd->enerpart_lambda[i] = 0;
                 reset_foreign_enerdata(enerd);
-                reset_dvdl_enerdata(enerd);
+                // reset_dvdl_enerdata(enerd);
                 
                 enerd->enerpart_lambda[repl+1] = enerd->term[F_EPOT];
                 if (repl-1>=0) enerd->enerpart_lambda[repl] = LocalUSwap[0];
