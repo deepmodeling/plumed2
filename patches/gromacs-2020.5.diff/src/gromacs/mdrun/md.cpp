@@ -1232,15 +1232,10 @@ void gmx::LegacySimulator::do_md()
                 int repl  = replica_exchange_get_repl(repl_ex);
                 int nrepl = replica_exchange_get_nrepl(repl_ex);
                 for (int i=0;i<enerd->enerpart_lambda.size();i++) enerd->enerpart_lambda[i] = 0;
-                reset_foreign_enerdata(enerd);
-                // reset_dvdl_enerdata(enerd);
                 
                 enerd->enerpart_lambda[repl+1] = enerd->term[F_EPOT];
                 if (repl-1>=0) enerd->enerpart_lambda[repl] = LocalUSwap[0];
                 if (repl+1<nrepl) enerd->enerpart_lambda[repl+2] = LocalUSwap[1];
-                // enerd->foreign_term[F_EPOT] = LocalUSwap;
-                // enerd->foreignLambdaTerms.accumulate((repl%2==step/replExParams.exchangeInterval%2) ? ((repl-1>=0) ? repl-1 : repl) : ((repl+1<nrepl) ? repl+1 : repl), enerd->foreign_term[F_EPOT], 0.0);
-                reset_foreign_enerdata(enerd);
                 }
               }
             }
