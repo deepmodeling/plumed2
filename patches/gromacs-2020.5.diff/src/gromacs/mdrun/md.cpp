@@ -1236,6 +1236,11 @@ void gmx::LegacySimulator::do_md()
                 enerd->enerpart_lambda[repl+1] = enerd->term[F_EPOT];
                 if (repl-1>=0) enerd->enerpart_lambda[repl] = LocalUSwap[0];
                 if (repl+1<nrepl) enerd->enerpart_lambda[repl+2] = LocalUSwap[1];
+                for (int j = 0; j < state->lambda.size(); j++)
+                  {
+                  enerd->dvdl_nonlin[j] += enerd->dvdl_lin[j];
+                  enerd->dvdl_lin[j] = 0;
+                  }
                 }
               }
             }
